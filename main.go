@@ -2,16 +2,21 @@ package main
 
 import (
 	"encoding/xml"
+	"flag"
 	"fmt"
 	"io"
 	"log"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/PuerkitoBio/goquery"
 )
+
+// Version is set during build via ldflags
+var Version = "dev"
 
 // fetchImages fetches all images from a given URL's postbody div
 func fetchImages(url string) ([]string, error) {
@@ -33,7 +38,7 @@ func fetchImages(url string) ([]string, error) {
 		return nil, fmt.Errorf("error creating request: %v", err)
 	}
 
-	req.Header.Set("User-Agent", "FeissariRSS/1.0 (https://github.com/lepinkainen/feissari-rss)")
+	req.Header.Set("User-Agent", fmt.Sprintf("FeissariRSS/%s (https://github.com/lepinkainen/feissari-rss)", Version))
 
 	// Get the HTML page
 	res, err := client.Do(req)
@@ -89,7 +94,7 @@ func fetchRSS(url string) (*RSS, error) {
 		return nil, fmt.Errorf("error creating request: %v", err)
 	}
 
-	req.Header.Set("User-Agent", "FeissariRSS/1.0 (https://github.com/lepinkainen/feissari-rss)")
+	req.Header.Set("User-Agent", fmt.Sprintf("FeissariRSS/%s (https://github.com/lepinkainen/feissari-rss)", Version))
 
 	// Get the RSS feed
 	res, err := client.Do(req)
@@ -118,6 +123,12 @@ func fetchRSS(url string) (*RSS, error) {
 }
 
 func main() {
+	// Define command line flags
+	outputDir := flag.String("outdir", ".", "Directory where the RSS file will be saved")
+	flag.Parse()
+
+	fmt.Printf("FeissariRSS %s starting up\n", Version)
+
 	rssURL := "https://static.feissarimokat.com/dynamic/latest/posts.rss"
 
 	// Fetch and parse the RSS feed
@@ -158,10 +169,18 @@ func main() {
 	xmlHeader := []byte(xml.Header)
 	output = append(xmlHeader, output...)
 
+	// Ensure output directory exists
+	if err := os.MkdirAll(*outputDir, 0755); err != nil {
+		log.Fatalf("Error creating output directory: %v", err)
+	}
+
+	// Create the full output file path
+	outputPath := filepath.Join(*outputDir, "feissarimokat.rss")
+
 	// Write to output file
-	if err := os.WriteFile("feissarimokat.rss", output, 0644); err != nil {
+	if err := os.WriteFile(outputPath, output, 0644); err != nil {
 		log.Fatalf("Error writing output file: %v", err)
 	}
 
-	fmt.Println("\nNew RSS feed generated as feissarimokat.rss")
+	fmt.Printf("\nNew RSS feed generated at %s\n", outputPath)
 }

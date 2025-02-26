@@ -24,3 +24,7 @@ go.work.sum
 # env file
 .env
 output.rss
+.task/
+feissarimokat.rss
+coverage/
+build/
