@@ -188,7 +188,7 @@ func main() {
 	outputPath := filepath.Join(*outputDir, "feissarimokat.xml")
 
 	// Create the RSS feed
-	rssOutput, err := feed.ToRss()
+	rssOutput, err := feed.ToAtom()
 	if err != nil {
 		log.Fatalf("Error generating RSS: %v", err)
 	}
