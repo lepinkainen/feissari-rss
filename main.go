@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/PuerkitoBio/goquery"
+	"github.com/gorilla/feeds"
 )
 
 // Version is set during build via ldflags
@@ -137,6 +138,16 @@ func main() {
 		log.Fatalf("Error fetching RSS feed: %v", err)
 	}
 
+	// Create a new feed using gorilla/feeds
+	feed := &feeds.Feed{
+		Title:       rss.Channel.Title,
+		Link:        &feeds.Link{Href: rss.Channel.Link},
+		Description: rss.Channel.Description,
+		Updated:     time.Now(),
+		Created:     time.Now(),
+		Author:      &feeds.Author{Name: "Feissarimokat"},
+	}
+
 	// Process each item
 	for i, item := range rss.Channel.Items {
 		fmt.Printf("Fetching images for item %d: %s\n", i+1, item.Title)
@@ -156,18 +167,17 @@ func main() {
 			imageHTML.WriteString(fmt.Sprintf("<img src=\"%s\" alt=\"%s\">\n", img, item.Title))
 		}
 
-		rss.Channel.Items[i].Description = imageHTML.String()
-	}
+		// Create a new feed item
+		feedItem := &feeds.Item{
+			Title:       item.Title,
+			Link:        &feeds.Link{Href: item.Link},
+			Description: imageHTML.String(),
+			Created:     time.Now(), // Since we don't have the original date, use current time
+			Id:          item.Link,  // Use the link as a unique ID
+		}
 
-	// Generate new RSS feed
-	output, err := xml.MarshalIndent(rss, "", "    ")
-	if err != nil {
-		log.Fatalf("Error generating RSS: %v", err)
+		feed.Items = append(feed.Items, feedItem)
 	}
-
-	// Add XML header
-	xmlHeader := []byte(xml.Header)
-	output = append(xmlHeader, output...)
 
 	// Ensure output directory exists
 	if err := os.MkdirAll(*outputDir, 0755); err != nil {
@@ -175,10 +185,16 @@ func main() {
 	}
 
 	// Create the full output file path
-	outputPath := filepath.Join(*outputDir, "feissarimokat.rss")
+	outputPath := filepath.Join(*outputDir, "feissarimokat.xml")
+
+	// Create the RSS feed
+	rssOutput, err := feed.ToRss()
+	if err != nil {
+		log.Fatalf("Error generating RSS: %v", err)
+	}
 
 	// Write to output file
-	if err := os.WriteFile(outputPath, output, 0644); err != nil {
+	if err := os.WriteFile(outputPath, []byte(rssOutput), 0644); err != nil {
 		log.Fatalf("Error writing output file: %v", err)
 	}
 
