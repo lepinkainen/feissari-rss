@@ -19,6 +19,25 @@ import (
 // Version is set during build via ldflags
 var Version = "dev"
 
+const lastModifiedFile = "feissarimokat_last_modified.txt"
+
+// readLastModified reads the stored Last-Modified datetime from file
+func readLastModified() (string, error) {
+	data, err := os.ReadFile(lastModifiedFile)
+	if os.IsNotExist(err) {
+		return "", nil // File doesn’t exist (first run), return empty string
+	}
+	if err != nil {
+		return "", err
+	}
+	return string(data), nil
+}
+
+// writeLastModified writes the Last-Modified datetime to file
+func writeLastModified(lastModified string) error {
+	return os.WriteFile(lastModifiedFile, []byte(lastModified), 0644)
+}
+
 // fetchImages fetches all images from a given URL's postbody div
 func fetchImages(url string) ([]string, error) {
 	// Create HTTP client with timeout and custom transport
@@ -76,7 +95,7 @@ func fetchImages(url string) ([]string, error) {
 }
 
 // fetchRSS fetches and parses an RSS feed from a URL
-func fetchRSS(url string) (*RSS, error) {
+func fetchRSS(url, lastModified string) (*RSS, error) {
 	// Create HTTP client with timeout and custom transport
 	transport := &http.Transport{
 		MaxIdleConns:       10,
@@ -96,6 +115,9 @@ func fetchRSS(url string) (*RSS, error) {
 	}
 
 	req.Header.Set("User-Agent", fmt.Sprintf("FeissariRSS/%s (https://github.com/lepinkainen/feissari-rss)", Version))
+	if lastModified != "" {
+		req.Header.Set("If-Modified-Since", lastModified)
+	}
 
 	// Get the RSS feed
 	res, err := client.Do(req)
@@ -104,14 +126,30 @@ func fetchRSS(url string) (*RSS, error) {
 	}
 	defer res.Body.Close()
 
-	if res.StatusCode != 200 {
+	if res.StatusCode != http.StatusOK {
+		if res.StatusCode == http.StatusNotModified {
+			return nil, nil
+		}
 		return nil, fmt.Errorf("status code error: %d %s", res.StatusCode, res.Status)
+	}
+
+	// Grab last-modified header
+	newLastModified := res.Header.Get("Last-Modified")
+	if newLastModified == "" {
+		log.Println("Warning: No Last-Modified header in response")
 	}
 
 	// Read the response body
 	content, err := io.ReadAll(res.Body)
 	if err != nil {
 		return nil, err
+	}
+
+	// Update the stored Last-Modified datetime if provided
+	if newLastModified != "" {
+		if err := writeLastModified(newLastModified); err != nil {
+			log.Printf("Error writing last modified: %v", err)
+		}
 	}
 
 	// Parse the RSS feed
@@ -132,10 +170,21 @@ func main() {
 
 	rssURL := "https://static.feissarimokat.com/dynamic/latest/posts.rss"
 
+	lastModified, err := readLastModified()
+	if err != nil {
+		log.Fatalf("Error reading last modified: %v", err)
+	}
+
 	// Fetch and parse the RSS feed
-	rss, err := fetchRSS(rssURL)
+	rss, err := fetchRSS(rssURL, lastModified)
 	if err != nil {
 		log.Fatalf("Error fetching RSS feed: %v", err)
+	}
+
+	// nil rss = not modified
+	if rss == nil {
+		//log.Printf("Not modified")
+		return
 	}
 
 	// Create a new feed using gorilla/feeds
