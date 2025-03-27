@@ -128,7 +128,7 @@ func main() {
 	outputDir := flag.String("outdir", ".", "Directory where the RSS file will be saved")
 	flag.Parse()
 
-	fmt.Printf("FeissariRSS %s starting up\n", Version)
+	//fmt.Printf("FeissariRSS %s starting up\n", Version)
 
 	rssURL := "https://static.feissarimokat.com/dynamic/latest/posts.rss"
 
@@ -149,8 +149,8 @@ func main() {
 	}
 
 	// Process each item
-	for i, item := range rss.Channel.Items {
-		fmt.Printf("Fetching images for item %d: %s\n", i+1, item.Title)
+	for _, item := range rss.Channel.Items {
+		//fmt.Printf("Fetching images for item %d: %s\n", i+1, item.Title)
 
 		images, err := fetchImages(item.Link)
 		if err != nil {
@@ -198,5 +198,5 @@ func main() {
 		log.Fatalf("Error writing output file: %v", err)
 	}
 
-	fmt.Printf("\nNew RSS feed generated at %s\n", outputPath)
+	//fmt.Printf("\nNew RSS feed generated at %s\n", outputPath)
 }
